@@ -72,42 +72,65 @@ const PhotoEditor = () => {
     return () => clearTimeout(timer);
   }, [text]);
 
-  // Mouse event handlers for dragging text
-  const handleMouseDown = (e) => {
+  // Get coordinates from mouse or touch event
+  const getEventCoordinates = (e) => {
+    // Handle touch events for mobile
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    // Handle mouse events for desktop
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  // Mouse/Touch event handlers for dragging text
+  const handlePointerDown = (e) => {
     if (!text.trim()) return; // Don't drag if no text
+    
+    // Prevent default behavior for touch events
+    if (e.touches) {
+      e.preventDefault();
+    }
     
     const canvas = previewCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const coords = getEventCoordinates(e);
+    const pointerX = coords.x - rect.left;
+    const pointerY = coords.y - rect.top;
     
-    // Convert mouse coordinates to canvas coordinates
+    // Convert coordinates to canvas coordinates
     const scaleX = 600 / rect.width;
     const scaleY = 700 / rect.height;
-    const canvasX = mouseX * scaleX;
-    const canvasY = mouseY * scaleY;
+    const canvasX = pointerX * scaleX;
+    const canvasY = pointerY * scaleY;
     
-    // Check if click is near text position (within 50px in canvas coordinates)
+    // Check if click/touch is near text position (increased touch area for mobile)
+    const touchAreaRadius = window.innerWidth <= 768 ? 60 : 50; // Larger touch area for mobile
     const distance = Math.sqrt((canvasX - textPosition.x) ** 2 + (canvasY - textPosition.y) ** 2);
-    if (distance <= 50) {
+    if (distance <= touchAreaRadius) {
       setIsDragging(true);
     }
   };
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     if (isDragging) {
+      // Prevent default behavior for touch events
+      if (e.touches) {
+        e.preventDefault();
+      }
+      
       const canvas = previewCanvasRef.current;
       if (!canvas) return;
       
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const coords = getEventCoordinates(e);
+      const pointerX = coords.x - rect.left;
+      const pointerY = coords.y - rect.top;
       
-      // Convert mouse coordinates to canvas coordinates
+      // Convert coordinates to canvas coordinates
       const scaleX = 600 / rect.width;
       const scaleY = 700 / rect.height;
-      const canvasX = mouseX * scaleX;
-      const canvasY = mouseY * scaleY;
+      const canvasX = pointerX * scaleX;
+      const canvasY = pointerY * scaleY;
       
       // Clamp position to canvas bounds
       const clampedX = Math.max(30, Math.min(570, canvasX));
@@ -120,7 +143,7 @@ const PhotoEditor = () => {
     }
   }, [isDragging]);
 
-  const handleMouseUp = () => {
+  const handlePointerUp = () => {
     setIsDragging(false);
   };
 
@@ -279,15 +302,26 @@ const PhotoEditor = () => {
         previewCtx.lineWidth = 2;
         previewCtx.setLineDash([5, 5]);
         previewCtx.beginPath();
-        previewCtx.arc(textPosition.x, textPosition.y, 25, 0, 2 * Math.PI);
+        previewCtx.arc(textPosition.x, textPosition.y, 30, 0, 2 * Math.PI); // Increased circle size for mobile
         previewCtx.stroke();
         previewCtx.setLineDash([]);
         
-        // Draw drag handle
+        // Draw drag handle (larger for mobile touch)
         previewCtx.fillStyle = isDragging ? '#00ff00' : '#ffffff';
         previewCtx.beginPath();
-        previewCtx.arc(textPosition.x, textPosition.y, 4, 0, 2 * Math.PI);
+        previewCtx.arc(textPosition.x, textPosition.y, 6, 0, 2 * Math.PI); // Increased handle size
         previewCtx.fill();
+        
+        // Add touch-friendly indicator
+        if (window.innerWidth <= 768) {
+          previewCtx.strokeStyle = isDragging ? '#00ff00' : '#ffffff';
+          previewCtx.lineWidth = 1;
+          previewCtx.setLineDash([2, 2]);
+          previewCtx.beginPath();
+          previewCtx.arc(textPosition.x, textPosition.y, 45, 0, 2 * Math.PI); // Outer circle for mobile
+          previewCtx.stroke();
+          previewCtx.setLineDash([]);
+        }
       }
     };
     img.src = generatedImage;
@@ -312,20 +346,31 @@ const PhotoEditor = () => {
         previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
         
-        // Draw updated text position indicator
+        // Draw updated text position indicator (mobile-friendly)
         previewCtx.strokeStyle = '#00ff00';
         previewCtx.lineWidth = 2;
         previewCtx.setLineDash([5, 5]);
         previewCtx.beginPath();
-        previewCtx.arc(textPosition.x, textPosition.y, 25, 0, 2 * Math.PI);
+        previewCtx.arc(textPosition.x, textPosition.y, 30, 0, 2 * Math.PI); // Larger for mobile
         previewCtx.stroke();
         previewCtx.setLineDash([]);
         
-        // Draw drag handle
+        // Draw drag handle (mobile-friendly)
         previewCtx.fillStyle = '#00ff00';
         previewCtx.beginPath();
-        previewCtx.arc(textPosition.x, textPosition.y, 4, 0, 2 * Math.PI);
+        previewCtx.arc(textPosition.x, textPosition.y, 6, 0, 2 * Math.PI); // Larger handle
         previewCtx.fill();
+        
+        // Add outer touch area indicator for mobile
+        if (window.innerWidth <= 768) {
+          previewCtx.strokeStyle = '#00ff00';
+          previewCtx.lineWidth = 1;
+          previewCtx.setLineDash([2, 2]);
+          previewCtx.beginPath();
+          previewCtx.arc(textPosition.x, textPosition.y, 45, 0, 2 * Math.PI);
+          previewCtx.stroke();
+          previewCtx.setLineDash([]);
+        }
       };
       img.src = generatedImage;
     }
@@ -608,16 +653,20 @@ const PhotoEditor = () => {
                     ref={previewCanvasRef}
                     width={600}
                     height={700}
-                    className="max-w-full max-h-[500px] rounded-lg shadow-lg cursor-crosshair"
+                    className="max-w-full max-h-[500px] rounded-lg shadow-lg cursor-crosshair touch-none"
                     style={{ objectFit: 'contain' }}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
+                    onMouseDown={handlePointerDown}
+                    onMouseMove={handlePointerMove}
+                    onMouseUp={handlePointerUp}
+                    onMouseLeave={handlePointerUp}
+                    onTouchStart={handlePointerDown}
+                    onTouchMove={handlePointerMove}
+                    onTouchEnd={handlePointerUp}
+                    onTouchCancel={handlePointerUp}
                   />
                   {/* Instructions */}
                   <div className="absolute bottom-2 left-2 text-xs text-gray-400 bg-black/50 px-2 py-1 rounded">
-                    Click and drag to move text
+                    {window.innerWidth <= 768 ? 'Touch and drag to move text' : 'Click and drag to move text'}
                   </div>
                 </>
               ) : (
