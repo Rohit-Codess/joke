@@ -251,7 +251,7 @@ const PhotoEditor = () => {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="btn-primary px-6 py-3 rounded-lg font-semibold hover:scale-105 transition-transform"
+                  className="btn-primary text-white px-6 py-3 rounded-lg font-semibold hover:scale-105 transition-transform"
                 >
                   Choose Image
                 </button>
@@ -327,7 +327,7 @@ const PhotoEditor = () => {
             <div className="flex gap-4">
               <button
                 onClick={resetEditor}
-                className="flex-1 btn-secondary px-6 py-3 rounded-lg font-semibold hover:scale-105 transition-transform flex items-center justify-center gap-2"
+                className="flex-1 btn-secondary text-red-700 px-6 py-3 rounded-lg font-semibold hover:scale-105 transition-transform flex items-center justify-center gap-2"
               >
                 <RotateCcw className="w-5 h-5" />
                 Reset
@@ -335,7 +335,7 @@ const PhotoEditor = () => {
               <button
                 onClick={downloadImage}
                 disabled={!generatedImage}
-                className="flex-1 btn-primary px-6 py-3 rounded-lg font-semibold hover:scale-105 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 btn-primary text-green-400 px-6 py-3 rounded-lg font-semibold hover:scale-105 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-5 h-5" />
                 Download

@@ -21,14 +21,12 @@ A premium, AI-powered photo editor for creating viral memes and joke images. Tra
 - **8 premium frame styles**: Circle, Square, Triangle, Hexagon, Star, Heart, Diamond, No Frame
 - **Dynamic text overlay** with custom positioning
 - **Real-time preview** with live updates
-- **High-quality output** ready for sharing
 
 ### 🎯 **User Experience**
 - **Drag & drop** file upload support
 - **Instant processing** with no server uploads
 - **Privacy-first** - all processing happens in your browser
 - **One-click download** in HD quality
-- **No watermarks** or signup required
 
 ### 🚀 **Performance**
 - **Lightning fast** with Vite build system
@@ -56,10 +54,10 @@ A premium, AI-powered photo editor for creating viral memes and joke images. Tra
 
 ```bash
 # Clone the repository
-git clone https://github.com/rtcodex/joke-photo-generator.git
+git clone https://github.com/Rohit-Codess/joke.git
 
 # Navigate to project directory
-cd joke-photo-generator
+cd client
 
 # Install dependencies
 npm install
@@ -103,16 +101,6 @@ Our design follows modern web standards with focus on:
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-VITE_APP_NAME=Joke Photo Generator
-VITE_APP_URL=https://rtcodex.dev
-VITE_GA_ID=your-google-analytics-id
-```
-
 ### Vite Configuration
 
 The project uses optimized Vite configuration for:
@@ -148,18 +136,12 @@ We welcome contributions! Please follow these steps:
 - Follow our ESLint configuration
 - Write meaningful commit messages
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🏢 About RTCodeX
 
 **RTCodeX** is a premium software development company based in Mumbai, India, specializing in:
 
 - **Web Applications** - Modern, scalable solutions
 - **Mobile Apps** - Cross-platform development
-- **Cloud Solutions** - Scalable infrastructure
-- **AI/ML Services** - Intelligent automation
 - **Digital Transformation** - End-to-end solutions
 
 ### Connect With Us
