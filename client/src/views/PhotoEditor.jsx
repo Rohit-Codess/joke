@@ -1,15 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Upload, Download, RotateCcw, Type, Image as ImageIcon } from 'lucide-react'
 
 const PhotoEditor = () => {
   const [selectedImage, setSelectedImage] = useState(null)
   const [selectedFrame, setSelectedFrame] = useState('circle')
   const [text, setText] = useState('')
+  const [debouncedText, setDebouncedText] = useState('') // Add debounced text state
   const [textColor, setTextColor] = useState('#ffffff')
   const [textSize, setTextSize] = useState(24)
+  const [textPosition, setTextPosition] = useState({ x: 300, y: 350 }) // Default center position
+  const [isDragging, setIsDragging] = useState(false)
   const [generatedImage, setGeneratedImage] = useState(null)
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
+  const previewCanvasRef = useRef(null)
 
   const frameOptions = [
     { id: 'circle', name: 'Circle', icon: '⭕' },
@@ -35,151 +39,6 @@ const PhotoEditor = () => {
   }
 
 
-  const generateImage = () => {
-    if (!selectedImage) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-
-    // Set canvas size
-    canvas.width = 600;
-    canvas.height = 700;
-
-    // Create image object
-    const img = new window.Image();
-    img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // --- Calculate text height dynamically ---
-      let textLines = [];
-      let textHeight = 0;
-      if (text.trim()) {
-        ctx.font = `bold ${textSize}px Arial`;
-        const maxTextWidth = canvas.width - 40;
-        const words = text.split(' ');
-        let line = '';
-        for (let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + ' ';
-          const metrics = ctx.measureText(testLine);
-          const testWidth = metrics.width;
-          if (testWidth > maxTextWidth && n > 0) {
-            textLines.push(line);
-            line = words[n] + ' ';
-          } else {
-            line = testLine;
-          }
-        }
-        textLines.push(line);
-        textHeight = textLines.length * (textSize + 10);
-      }
-
-      // --- Calculate image area height based on text height ---
-      const minImageArea = 0.3; // At least 30% for image
-      const maxImageArea = 0.8; // At most 80% for image
-      let imageAreaHeight = canvas.height * maxImageArea;
-      if (textHeight > 0) {
-        // Shrink image area if text is large
-        imageAreaHeight = Math.max(canvas.height - textHeight - 40, canvas.height * minImageArea);
-      }
-
-      const maxWidth = 400;
-      const maxHeight = imageAreaHeight - 40;
-      let { width, height } = img;
-      if (width > height) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
-      } else {
-        width = (width * maxHeight) / height;
-        height = maxHeight;
-      }
-      const x = (canvas.width - width) / 2;
-      const y = 20;
-
-      // Apply frame mask
-      ctx.save();
-      ctx.beginPath();
-      if (selectedFrame === 'circle') {
-        ctx.arc(x + width / 2, y + height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
-      } else if (selectedFrame === 'square') {
-        ctx.rect(x, y, width, height);
-      } else if (selectedFrame === 'triangle') {
-        ctx.moveTo(x + width / 2, y);
-        ctx.lineTo(x, y + height);
-        ctx.lineTo(x + width, y + height);
-        ctx.closePath();
-      } else if (selectedFrame === 'hexagon') {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const radius = Math.min(width, height) / 2;
-        for (let i = 0; i < 6; i++) {
-          const angle = (i * Math.PI) / 3;
-          const px = centerX + radius * Math.cos(angle);
-          const py = centerY + radius * Math.sin(angle);
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-      } else if (selectedFrame === 'star') {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const outerRadius = Math.min(width, height) / 2;
-        const innerRadius = outerRadius * 0.4;
-        for (let i = 0; i < 10; i++) {
-          const angle = (i * Math.PI) / 5;
-          const radius = i % 2 === 0 ? outerRadius : innerRadius;
-          const px = centerX + radius * Math.cos(angle);
-          const py = centerY + radius * Math.sin(angle);
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-      } else if (selectedFrame === 'heart') {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const size = Math.min(width, height) / 2;
-        ctx.moveTo(centerX, centerY + size / 2);
-        ctx.bezierCurveTo(centerX, centerY, centerX - size, centerY, centerX - size, centerY + size / 2);
-        ctx.bezierCurveTo(centerX - size, centerY + size, centerX, centerY + size * 1.5, centerX, centerY + size * 1.5);
-        ctx.bezierCurveTo(centerX, centerY + size, centerX + size, centerY + size, centerX + size, centerY + size / 2);
-        ctx.bezierCurveTo(centerX + size, centerY, centerX, centerY, centerX, centerY + size / 2);
-      } else if (selectedFrame === 'diamond') {
-        ctx.moveTo(x + width / 2, y);
-        ctx.lineTo(x + width, y + height / 2);
-        ctx.lineTo(x + width / 2, y + height);
-        ctx.lineTo(x, y + height / 2);
-        ctx.closePath();
-      } else {
-        ctx.rect(x, y, width, height);
-      }
-      ctx.clip();
-      ctx.drawImage(img, x, y, width, height);
-      ctx.restore();
-
-      // Draw text in the remaining area
-      if (text.trim()) {
-        ctx.fillStyle = textColor;
-        ctx.font = `bold ${textSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-
-        // Calculate text area
-        const textAreaY = imageAreaHeight + 10;
-        let yPos = textAreaY + textSize / 2;
-        for (let i = 0; i < textLines.length; i++) {
-          ctx.fillText(textLines[i], canvas.width / 2, yPos);
-          yPos += textSize + 10;
-        }
-      }
-
-      setGeneratedImage(canvas.toDataURL('image/png'));
-    };
-    img.src = selectedImage;
-  };
-
   const downloadImage = () => {
     if (!generatedImage) return
     
@@ -193,20 +52,415 @@ const PhotoEditor = () => {
     setSelectedImage(null)
     setSelectedFrame('circle')
     setText('')
+    setDebouncedText('') // Reset debounced text as well
     setTextColor('#ffffff')
     setTextSize(24)
+    setTextPosition({ x: 300, y: 350 }) // Reset to center
+    setIsDragging(false)
     setGeneratedImage(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
 
-  // Auto-generate when image or settings change
+  // Debounce text input to prevent excessive re-renders
   useEffect(() => {
-    if (selectedImage) {
-      generateImage();
+    const timer = setTimeout(() => {
+      setDebouncedText(text);
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(timer);
+  }, [text]);
+
+  // Mouse event handlers for dragging text
+  const handleMouseDown = (e) => {
+    if (!text.trim()) return; // Don't drag if no text
+    
+    const canvas = previewCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Convert mouse coordinates to canvas coordinates
+    const scaleX = 600 / rect.width;
+    const scaleY = 700 / rect.height;
+    const canvasX = mouseX * scaleX;
+    const canvasY = mouseY * scaleY;
+    
+    // Check if click is near text position (within 50px in canvas coordinates)
+    const distance = Math.sqrt((canvasX - textPosition.x) ** 2 + (canvasY - textPosition.y) ** 2);
+    if (distance <= 50) {
+      setIsDragging(true);
     }
-  }, [selectedImage, selectedFrame, text, textColor, textSize])
+  };
+
+  const handleMouseMove = useCallback((e) => {
+    if (isDragging) {
+      const canvas = previewCanvasRef.current;
+      if (!canvas) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Convert mouse coordinates to canvas coordinates
+      const scaleX = 600 / rect.width;
+      const scaleY = 700 / rect.height;
+      const canvasX = mouseX * scaleX;
+      const canvasY = mouseY * scaleY;
+      
+      // Clamp position to canvas bounds
+      const clampedX = Math.max(30, Math.min(570, canvasX));
+      const clampedY = Math.max(30, Math.min(670, canvasY));
+      
+      // Use requestAnimationFrame for smoother updates
+      requestAnimationFrame(() => {
+        setTextPosition({ x: clampedX, y: clampedY });
+      });
+    }
+  }, [isDragging]);
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Auto-generate when image or settings change (but not text position during dragging)
+  useEffect(() => {
+    if (!selectedImage) return;
+    if (isDragging) return; // Don't regenerate while dragging for performance
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    // Set canvas size
+    canvas.width = 600;
+    canvas.height = 700;
+
+    // Create image object
+    const img = new window.Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw image at full canvas size (100% width and height)
+      const { width: canvasWidth, height: canvasHeight } = canvas;
+      
+      // Apply frame mask first if needed
+      if (selectedFrame !== 'none') {
+        ctx.save();
+        ctx.beginPath();
+        
+        if (selectedFrame === 'circle') {
+          const radius = Math.min(canvasWidth, canvasHeight) / 2;
+          ctx.arc(canvasWidth / 2, canvasHeight / 2, radius, 0, 2 * Math.PI);
+        } else if (selectedFrame === 'square') {
+          ctx.rect(0, 0, canvasWidth, canvasHeight);
+        } else if (selectedFrame === 'triangle') {
+          ctx.moveTo(canvasWidth / 2, 0);
+          ctx.lineTo(0, canvasHeight);
+          ctx.lineTo(canvasWidth, canvasHeight);
+          ctx.closePath();
+        } else if (selectedFrame === 'hexagon') {
+          const centerX = canvasWidth / 2;
+          const centerY = canvasHeight / 2;
+          const radius = Math.min(canvasWidth, canvasHeight) / 2;
+          for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3;
+            const px = centerX + radius * Math.cos(angle);
+            const py = centerY + radius * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+        } else if (selectedFrame === 'star') {
+          const centerX = canvasWidth / 2;
+          const centerY = canvasHeight / 2;
+          const outerRadius = Math.min(canvasWidth, canvasHeight) / 2;
+          const innerRadius = outerRadius * 0.4;
+          for (let i = 0; i < 10; i++) {
+            const angle = (i * Math.PI) / 5;
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const px = centerX + radius * Math.cos(angle);
+            const py = centerY + radius * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+        } else if (selectedFrame === 'heart') {
+          const centerX = canvasWidth / 2;
+          const centerY = canvasHeight / 2;
+          const size = Math.min(canvasWidth, canvasHeight) / 2;
+          ctx.moveTo(centerX, centerY + size / 2);
+          ctx.bezierCurveTo(centerX, centerY, centerX - size, centerY, centerX - size, centerY + size / 2);
+          ctx.bezierCurveTo(centerX - size, centerY + size, centerX, centerY + size * 1.5, centerX, centerY + size * 1.5);
+          ctx.bezierCurveTo(centerX, centerY + size, centerX + size, centerY + size, centerX + size, centerY + size / 2);
+          ctx.bezierCurveTo(centerX + size, centerY, centerX, centerY, centerX, centerY + size / 2);
+        } else if (selectedFrame === 'diamond') {
+          ctx.moveTo(canvasWidth / 2, 0);
+          ctx.lineTo(canvasWidth, canvasHeight / 2);
+          ctx.lineTo(canvasWidth / 2, canvasHeight);
+          ctx.lineTo(0, canvasHeight / 2);
+          ctx.closePath();
+        }
+        
+        ctx.clip();
+      }
+      
+      // Draw image to fill entire canvas
+      ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+      
+      if (selectedFrame !== 'none') {
+        ctx.restore();
+      }
+
+      // Draw moveable text at specified position
+      if (debouncedText.trim()) {
+        ctx.fillStyle = textColor;
+        ctx.font = `bold ${textSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Add text shadow for better visibility
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        
+        // Wrap text if too long
+        const maxTextWidth = canvasWidth - 40;
+        const words = debouncedText.split(' ');
+        let lines = [];
+        let currentLine = '';
+        
+        for (let word of words) {
+          const testLine = currentLine + word + ' ';
+          const metrics = ctx.measureText(testLine);
+          
+          if (metrics.width > maxTextWidth && currentLine !== '') {
+            lines.push(currentLine);
+            currentLine = word + ' ';
+          } else {
+            currentLine = testLine;
+          }
+        }
+        lines.push(currentLine);
+        
+        // Draw text lines at the specified position
+        const lineHeight = textSize + 10;
+        const startY = textPosition.y - (lines.length - 1) * lineHeight / 2;
+        
+        lines.forEach((line, index) => {
+          ctx.fillText(line, textPosition.x, startY + index * lineHeight);
+        });
+      }
+
+      setGeneratedImage(canvas.toDataURL('image/png'));
+    };
+    img.src = selectedImage;
+  }, [selectedImage, selectedFrame, debouncedText, textColor, textSize, textPosition.x, textPosition.y, isDragging])
+
+  // Update preview canvas with interaction overlay
+  const updatePreviewCanvas = useCallback(() => {
+    if (!generatedImage || !previewCanvasRef.current) return;
+    
+    const previewCanvas = previewCanvasRef.current;
+    const previewCtx = previewCanvas.getContext('2d');
+    
+    // Clear the preview canvas
+    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    
+    // Draw the generated image
+    const img = new Image();
+    img.onload = () => {
+      previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+      
+      // Draw text position indicator if text exists (use immediate text for interactive feedback)
+      if (text.trim()) {
+        previewCtx.strokeStyle = isDragging ? '#00ff00' : '#ffffff';
+        previewCtx.lineWidth = 2;
+        previewCtx.setLineDash([5, 5]);
+        previewCtx.beginPath();
+        previewCtx.arc(textPosition.x, textPosition.y, 25, 0, 2 * Math.PI);
+        previewCtx.stroke();
+        previewCtx.setLineDash([]);
+        
+        // Draw drag handle
+        previewCtx.fillStyle = isDragging ? '#00ff00' : '#ffffff';
+        previewCtx.beginPath();
+        previewCtx.arc(textPosition.x, textPosition.y, 4, 0, 2 * Math.PI);
+        previewCtx.fill();
+      }
+    };
+    img.src = generatedImage;
+  }, [generatedImage, text, textPosition, isDragging]);
+
+  // Update preview canvas when generated image changes (not during dragging)
+  useEffect(() => {
+    if (!isDragging) {
+      updatePreviewCanvas();
+    }
+  }, [updatePreviewCanvas, isDragging]);
+
+  // Separate effect for drag state changes to update overlay smoothly
+  useEffect(() => {
+    if (isDragging && generatedImage && previewCanvasRef.current && text.trim()) {
+      const previewCanvas = previewCanvasRef.current;
+      const previewCtx = previewCanvas.getContext('2d');
+      
+      // Redraw just the overlay without regenerating the whole image
+      const img = new Image();
+      img.onload = () => {
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+        
+        // Draw updated text position indicator
+        previewCtx.strokeStyle = '#00ff00';
+        previewCtx.lineWidth = 2;
+        previewCtx.setLineDash([5, 5]);
+        previewCtx.beginPath();
+        previewCtx.arc(textPosition.x, textPosition.y, 25, 0, 2 * Math.PI);
+        previewCtx.stroke();
+        previewCtx.setLineDash([]);
+        
+        // Draw drag handle
+        previewCtx.fillStyle = '#00ff00';
+        previewCtx.beginPath();
+        previewCtx.arc(textPosition.x, textPosition.y, 4, 0, 2 * Math.PI);
+        previewCtx.fill();
+      };
+      img.src = generatedImage;
+    }
+  }, [textPosition, isDragging, generatedImage, text]);
+
+  // Regenerate final image when dragging stops
+  useEffect(() => {
+    if (!isDragging && selectedImage && textPosition) {
+      // Small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const img = new window.Image();
+        
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          // Draw image at full canvas size
+          const { width: canvasWidth, height: canvasHeight } = canvas;
+          
+          // Apply frame mask if needed
+          if (selectedFrame !== 'none') {
+            ctx.save();
+            ctx.beginPath();
+            
+            if (selectedFrame === 'circle') {
+              const radius = Math.min(canvasWidth, canvasHeight) / 2;
+              ctx.arc(canvasWidth / 2, canvasHeight / 2, radius, 0, 2 * Math.PI);
+            } else if (selectedFrame === 'square') {
+              ctx.rect(0, 0, canvasWidth, canvasHeight);
+            } else if (selectedFrame === 'triangle') {
+              ctx.moveTo(canvasWidth / 2, 0);
+              ctx.lineTo(0, canvasHeight);
+              ctx.lineTo(canvasWidth, canvasHeight);
+              ctx.closePath();
+            } else if (selectedFrame === 'hexagon') {
+              const centerX = canvasWidth / 2;
+              const centerY = canvasHeight / 2;
+              const radius = Math.min(canvasWidth, canvasHeight) / 2;
+              for (let i = 0; i < 6; i++) {
+                const angle = (i * Math.PI) / 3;
+                const px = centerX + radius * Math.cos(angle);
+                const py = centerY + radius * Math.sin(angle);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+            } else if (selectedFrame === 'star') {
+              const centerX = canvasWidth / 2;
+              const centerY = canvasHeight / 2;
+              const outerRadius = Math.min(canvasWidth, canvasHeight) / 2;
+              const innerRadius = outerRadius * 0.4;
+              for (let i = 0; i < 10; i++) {
+                const angle = (i * Math.PI) / 5;
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const px = centerX + radius * Math.cos(angle);
+                const py = centerY + radius * Math.sin(angle);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+            } else if (selectedFrame === 'heart') {
+              const centerX = canvasWidth / 2;
+              const centerY = canvasHeight / 2;
+              const size = Math.min(canvasWidth, canvasHeight) / 2;
+              ctx.moveTo(centerX, centerY + size / 2);
+              ctx.bezierCurveTo(centerX, centerY, centerX - size, centerY, centerX - size, centerY + size / 2);
+              ctx.bezierCurveTo(centerX - size, centerY + size, centerX, centerY + size * 1.5, centerX, centerY + size * 1.5);
+              ctx.bezierCurveTo(centerX, centerY + size, centerX + size, centerY + size, centerX + size, centerY + size / 2);
+              ctx.bezierCurveTo(centerX + size, centerY, centerX, centerY, centerX, centerY + size / 2);
+            } else if (selectedFrame === 'diamond') {
+              ctx.moveTo(canvasWidth / 2, 0);
+              ctx.lineTo(canvasWidth, canvasHeight / 2);
+              ctx.lineTo(canvasWidth / 2, canvasHeight);
+              ctx.lineTo(0, canvasHeight / 2);
+              ctx.closePath();
+            }
+            
+            ctx.clip();
+          }
+          
+          // Draw image to fill entire canvas
+          ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+          
+          if (selectedFrame !== 'none') {
+            ctx.restore();
+          }
+
+          // Draw text at final position
+          if (debouncedText.trim()) {
+            ctx.fillStyle = textColor;
+            ctx.font = `bold ${textSize}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            
+            const maxTextWidth = canvasWidth - 40;
+            const words = debouncedText.split(' ');
+            let lines = [];
+            let currentLine = '';
+            
+            for (let word of words) {
+              const testLine = currentLine + word + ' ';
+              const metrics = ctx.measureText(testLine);
+              
+              if (metrics.width > maxTextWidth && currentLine !== '') {
+                lines.push(currentLine);
+                currentLine = word + ' ';
+              } else {
+                currentLine = testLine;
+              }
+            }
+            lines.push(currentLine);
+            
+            const lineHeight = textSize + 10;
+            const startY = textPosition.y - (lines.length - 1) * lineHeight / 2;
+            
+            lines.forEach((line, index) => {
+              ctx.fillText(line, textPosition.x, startY + index * lineHeight);
+            });
+          }
+
+          setGeneratedImage(canvas.toDataURL('image/png'));
+        };
+        
+        img.src = selectedImage;
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isDragging, selectedImage, selectedFrame, debouncedText, textColor, textSize, textPosition]);
 
   // Clear data when user leaves the page
   useEffect(() => {
@@ -346,13 +600,26 @@ const PhotoEditor = () => {
           {/* Preview Panel */}
           <div className="glass p-6 rounded-xl">
             <h2 className="text-2xl font-bold text-white mb-4">Preview</h2>
-            <div className="flex items-center justify-center min-h-[500px] bg-gray-900 rounded-lg border border-gray-700">
+            <div className="flex items-center justify-center min-h-[500px] bg-gray-900 rounded-lg border border-gray-700 relative">
               {generatedImage ? (
-                <img
-                  src={generatedImage}
-                  alt="Generated joke photo"
-                  className="max-w-full max-h-[500px] rounded-lg shadow-lg"
-                />
+                <>
+                  {/* Interactive Canvas for Text Dragging and Display */}
+                  <canvas
+                    ref={previewCanvasRef}
+                    width={600}
+                    height={700}
+                    className="max-w-full max-h-[500px] rounded-lg shadow-lg cursor-crosshair"
+                    style={{ objectFit: 'contain' }}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                  />
+                  {/* Instructions */}
+                  <div className="absolute bottom-2 left-2 text-xs text-gray-400 bg-black/50 px-2 py-1 rounded">
+                    Click and drag to move text
+                  </div>
+                </>
               ) : (
                 <div className="text-center text-gray-400">
                   <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
